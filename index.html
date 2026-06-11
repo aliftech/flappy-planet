@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flappy Planet</title>
+    <title>Flappy Planet - Endless Space</title>
     <style>
         body {
             margin: 0;
@@ -12,39 +12,39 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #050510; /* Deep space background for the page */
-            font-family: 'Arial', sans-serif;
+            background-color: #050510;
+            font-family: 'Courier New', monospace;
             overflow: hidden;
         }
 
         #gameContainer {
             position: relative;
-            box-shadow: 0 0 30px rgba(0, 229, 255, 0.3); /* Neon glow */
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.3);
             border-radius: 8px;
             overflow: hidden;
         }
 
         canvas {
             display: block;
-            background-color: #0b0d17; /* Space dark blue */
-            border: 2px solid #00e5ff; /* Neon cyan border */
+            background-color: #0b0d17;
+            border: 2px solid #00e5ff;
             border-radius: 8px;
         }
 
         #scoreDisplay {
             position: absolute;
-            top: 20px;
+            top: 15px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 40px;
+            font-size: 36px;
             font-weight: bold;
-            color: #00e5ff; /* Neon cyan */
+            color: #00e5ff;
             text-shadow: 0 0 10px #00e5ff;
             z-index: 10;
-            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
         }
 
-        #startScreen, #gameOverScreen {
+        .screen-overlay {
             position: absolute;
             top: 50%;
             left: 50%;
@@ -52,42 +52,29 @@
             text-align: center;
             color: white;
             z-index: 20;
-            background: rgba(11, 13, 23, 0.85);
+            background: rgba(11, 13, 23, 0.9);
             padding: 30px;
-            border-radius: 10px;
+            border-radius: 12px;
             border: 1px solid #00e5ff;
-            box-shadow: 0 0 20px rgba(0, 229, 255, 0.2);
+            box-shadow: 0 0 25px rgba(0, 229, 255, 0.3);
+            min-width: 280px;
         }
 
-        #gameOverScreen {
-            display: none;
-        }
+        #startScreen { display: block; }
+        #gameOverScreen { display: none; }
 
-        h1 {
-            font-size: 36px;
-            margin: 0 0 10px 0;
-            color: #00e5ff;
-            text-shadow: 0 0 10px #00e5ff;
-            font-family: 'Courier New', monospace;
-            letter-spacing: 2px;
-        }
-
-        p {
-            font-size: 16px;
-            margin: 0 0 20px 0;
-            color: #ccc;
-        }
+        h1 { font-size: 28px; margin: 0 0 10px 0; color: #00e5ff; text-shadow: 0 0 10px #00e5ff; }
+        p { font-size: 15px; margin: 0 0 20px 0; color: #aaa; line-height: 1.5; }
 
         button {
             padding: 12px 24px;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: #050510;
-            background-color: #00e5ff; /* Neon cyan */
+            background-color: #00e5ff;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            font-family: 'Courier New', monospace;
             transition: all 0.2s;
             box-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
         }
@@ -104,16 +91,16 @@
     <div id="gameContainer">
         <div id="scoreDisplay">0</div>
         
-        <div id="startScreen">
+        <div id="startScreen" class="screen-overlay">
             <h1>FLAPPY PLANET</h1>
-            <p>Press SPACE or Tap to Fly</p>
-            <button onclick="startGame()">Start Mission</button>
+            <p>Dodge space pillars, mines, and enemy drones.<br>How far can you survive?</p>
+            <button onclick="startGame()">LAUNCH SHIP</button>
         </div>
 
-        <div id="gameOverScreen">
-            <h1>MISSION FAILED</h1>
-            <p>Distance: <span id="finalScore">0</span></p>
-            <button onclick="resetGame()">Try Again</button>
+        <div id="gameOverScreen" class="screen-overlay">
+            <h1 style="color: #ff4444; text-shadow: 0 0 10px #ff4444;">SIGNAL LOST</h1>
+            <p>Distance Traveled: <span id="finalScore">0</span></p>
+            <button onclick="resetGame()">RETRY MISSION</button>
         </div>
 
         <canvas id="gameCanvas" width="320" height="480"></canvas>
@@ -127,256 +114,250 @@
         const gameOverScreen = document.getElementById('gameOverScreen');
         const finalScoreDisplay = document.getElementById('finalScore');
 
-        // Game variables
         let frames = 0;
         let score = 0;
         let gameRunning = false;
         let animationId;
+        let gameSpeed = 2; // Base speed, increases slightly over time
 
-        // Generate static stars for the background
+        // Background stars
         const stars = [];
-        for (let i = 0; i < 60; i++) {
-            stars.push({
-                x: Math.random() * canvas.width,
-                y: Math.random() * (canvas.height - 40), // Keep above ground
-                size: Math.random() * 2 + 0.5,
-                opacity: Math.random() * 0.5 + 0.5
+        for (let i = 0; i < 80; i++) {
+            stars.push({ 
+                x: Math.random() * canvas.width, 
+                y: Math.random() * (canvas.height - 40), 
+                size: Math.random() * 2 + 0.5, 
+                opacity: Math.random() * 0.5 + 0.5,
+                speed: Math.random() * 0.5 + 0.1 
             });
         }
 
-        // UFO character object
+        // UFO Character
         const ufo = {
-            x: 50,
-            y: 150,
-            width: 24,
-            height: 20,
-            velocity: 0,
-            gravity: 0.25,
-            jumpStrength: -4.5,
+            x: 50, y: 150, width: 24, height: 20,
+            velocity: 0, gravity: 0.25, jumpStrength: -4.5,
             
             draw: function() {
-                // Save context for rotation based on velocity
                 ctx.save();
                 ctx.translate(this.x + this.width/2, this.y + this.height/2);
                 let rotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 4, (this.velocity * 0.1)));
                 ctx.rotate(rotation);
 
-                // UFO Dome (Glass)
+                // Dome
                 ctx.fillStyle = '#00e5ff';
-                ctx.beginPath();
-                ctx.arc(0, -2, 7, Math.PI, 0);
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1;
-                ctx.stroke();
+                ctx.beginPath(); ctx.arc(0, -2, 7, Math.PI, 0); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
 
-                // UFO Saucer Body (Metallic Gray)
+                // Saucer
                 ctx.fillStyle = '#a0a0a0';
-                ctx.beginPath();
-                ctx.ellipse(0, 4, 14, 6, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#555';
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
+                ctx.beginPath(); ctx.ellipse(0, 4, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#555'; ctx.lineWidth = 1.5; ctx.stroke();
 
-                // UFO Lights (Underneath)
-                ctx.fillStyle = '#ffeb3b'; // Yellow lights
-                ctx.beginPath();
-                ctx.arc(-8, 5, 2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(0, 7, 2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.arc(8, 5, 2, 0, Math.PI * 2);
-                ctx.fill();
+                // Lights
+                ctx.fillStyle = '#ffeb3b';
+                [[-8,5],[0,7],[8,5]].forEach(p => { ctx.beginPath(); ctx.arc(p[0], p[1], 2, 0, Math.PI*2); ctx.fill(); });
 
-                // Tractor beam glow (subtle)
+                // Beam
                 ctx.fillStyle = 'rgba(0, 229, 255, 0.2)';
-                ctx.beginPath();
-                ctx.moveTo(-6, 8);
-                ctx.lineTo(6, 8);
-                ctx.lineTo(10, 18);
-                ctx.lineTo(-10, 18);
-                ctx.fill();
-
+                ctx.beginPath(); ctx.moveTo(-6, 8); ctx.lineTo(6, 8); ctx.lineTo(10, 18); ctx.lineTo(-10, 18); ctx.fill();
                 ctx.restore();
             },
             
             update: function() {
                 this.velocity += this.gravity;
                 this.y += this.velocity;
-
-                // Floor collision
-                if (this.y + this.height >= canvas.height - 20) { 
-                    this.y = canvas.height - 20 - this.height;
-                    gameOver();
-                }
-                
-                // Ceiling collision
-                if (this.y <= 0) {
-                    this.y = 0;
-                    this.velocity = 0;
-                }
+                if (this.y + this.height >= canvas.height - 20) { this.y = canvas.height - 20 - this.height; gameOver(); }
+                if (this.y <= 0) { this.y = 0; this.velocity = 0; }
             },
-            
-            jump: function() {
-                this.velocity = this.jumpStrength;
-            }
+            jump: function() { this.velocity = this.jumpStrength; }
         };
 
-        // Space Pillars (Obstacles)
-        const obstacles = {
-            items: [],
-            width: 40,
-            gap: 110, // Slightly wider for UFO
-            dx: 2,
-            
+        // Obstacle 1: Space Pillars
+        const pillars = {
+            items: [], width: 40, gap: 110,
             draw: function() {
-                for (let i = 0; i < this.items.length; i++) {
-                    let p = this.items[i];
+                for (let p of this.items) {
+                    ctx.fillStyle = '#607d8b'; ctx.strokeStyle = '#37474f'; ctx.lineWidth = 2;
+                    ctx.fillRect(p.x, 0, this.width, p.top); ctx.strokeRect(p.x, 0, this.width, p.top);
+                    ctx.fillRect(p.x - 3, p.top - 15, this.width + 6, 15); ctx.strokeRect(p.x - 3, p.top - 15, this.width + 6, 15);
+                    ctx.fillRect(p.x, canvas.height - 20 - p.bottom, this.width, p.bottom); ctx.strokeRect(p.x, canvas.height - 20 - p.bottom, this.width, p.bottom);
+                    ctx.fillRect(p.x - 3, canvas.height - 20 - p.bottom, this.width + 6, 15); ctx.strokeRect(p.x - 3, canvas.height - 20 - p.bottom, this.width + 6, 15);
                     
-                    // Metallic gray color
-                    ctx.fillStyle = '#607d8b'; 
-                    ctx.strokeStyle = '#37474f';
-                    ctx.lineWidth = 2;
-
-                    // Top pillar
-                    ctx.fillRect(p.x, 0, this.width, p.top);
-                    ctx.strokeRect(p.x, 0, this.width, p.top);
-                    
-                    // Top pillar cap
-                    ctx.fillRect(p.x - 3, p.top - 15, this.width + 6, 15);
-                    ctx.strokeRect(p.x - 3, p.top - 15, this.width + 6, 15);
-                    
-                    // Bottom pillar
-                    ctx.fillRect(p.x, canvas.height - 20 - p.bottom, this.width, p.bottom);
-                    ctx.strokeRect(p.x, canvas.height - 20 - p.bottom, this.width, p.bottom);
-                    
-                    // Bottom pillar cap
-                    ctx.fillRect(p.x - 3, canvas.height - 20 - p.bottom, this.width + 6, 15);
-                    ctx.strokeRect(p.x - 3, canvas.height - 20 - p.bottom, this.width + 6, 15);
-
-                    // Add some "rivet" details to make it look mechanical
+                    // Rivets
                     ctx.fillStyle = '#37474f';
-                    ctx.beginPath();
-                    ctx.arc(p.x + 10, p.top - 25, 2, 0, Math.PI * 2);
-                    ctx.arc(p.x + 30, p.top - 25, 2, 0, Math.PI * 2);
-                    ctx.arc(p.x + 10, canvas.height - 20 - p.bottom + 25, 2, 0, Math.PI * 2);
-                    ctx.arc(p.x + 30, canvas.height - 20 - p.bottom + 25, 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            },
-            
-            update: function() {
-                // Add new obstacle every 100 frames
-                if (frames % 100 === 0) {
-                    let topHeight = Math.random() * (canvas.height - 150 - this.gap) + 30;
-                    let bottomHeight = canvas.height - 20 - this.gap - topHeight;
-                    this.items.push({
-                        x: canvas.width,
-                        top: topHeight,
-                        bottom: bottomHeight,
-                        passed: false
+                    [[10, -25], [30, -25], [10, 25], [30, 25]].forEach(r => { 
+                        ctx.beginPath(); ctx.arc(p.x + r[0], (r[1]<0 ? p.top : canvas.height - 20 - p.bottom) + r[1], 2, 0, Math.PI*2); ctx.fill(); 
                     });
                 }
-                
+            },
+            update: function() {
+                // Spawn rate gets slightly faster as score increases
+                let spawnRate = Math.max(80, 100 - Math.floor(score / 5) * 5);
+                if (frames % spawnRate === 0) {
+                    let top = Math.random() * (canvas.height - 150 - this.gap) + 30;
+                    this.items.push({ x: canvas.width, top, bottom: canvas.height - 20 - this.gap - top, passed: false });
+                }
                 for (let i = 0; i < this.items.length; i++) {
-                    let p = this.items[i];
-                    p.x -= this.dx;
+                    let p = this.items[i]; 
+                    p.x -= gameSpeed;
                     
-                    // Collision detection (fair hitbox)
-                    let bx = ufo.x + 6;
-                    let by = ufo.y + 6;
-                    let bw = ufo.width - 12;
-                    let bh = ufo.height - 12;
-                    
-                    // Check top pillar
-                    if (bx < p.x + this.width &&
-                        bx + bw > p.x &&
-                        by < p.top) {
+                    // Collision
+                    let bx = ufo.x + 6, by = ufo.y + 6, bw = ufo.width - 12, bh = ufo.height - 12;
+                    if (bx < p.x + this.width && bx + bw > p.x && (by < p.top || by + bh > canvas.height - 20 - p.bottom)) {
                         gameOver();
                     }
                     
-                    // Check bottom pillar
-                    if (bx < p.x + this.width &&
-                        bx + bw > p.x &&
-                        by + bh > canvas.height - 20 - p.bottom) {
-                        gameOver();
+                    // Score
+                    if (p.x + this.width < ufo.x && !p.passed) { 
+                        score++; 
+                        scoreDisplay.innerText = score; 
+                        p.passed = true; 
+                        // Slightly increase game speed every 5 points
+                        if (score % 5 === 0) gameSpeed = Math.min(3.5, gameSpeed + 0.2);
                     }
                     
-                    // Score update
-                    if (p.x + this.width < ufo.x && !p.passed) {
-                        score++;
-                        scoreDisplay.innerText = score;
-                        p.passed = true;
-                    }
-                    
-                    // Remove off-screen obstacles
-                    if (p.x + this.width < 0) {
-                        this.items.shift();
-                        i--;
-                    }
+                    if (p.x + this.width < 0) { this.items.splice(i, 1); i--; }
                 }
             },
-            
-            reset: function() {
-                this.items = [];
-            }
+            reset: function() { this.items = []; }
         };
 
-        // Planetary Ground
+        // Obstacle 2: Floating Space Mines
+        const mines = {
+            items: [],
+            draw: function() {
+                for (let m of this.items) {
+                    ctx.save();
+                    ctx.translate(m.x, m.y);
+                    // Glow
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#ff4444';
+                    // Mine body
+                    ctx.fillStyle = '#ff4444';
+                    ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI*2); ctx.fill();
+                    ctx.shadowBlur = 0;
+                    // Spikes
+                    ctx.strokeStyle = '#ff8888'; ctx.lineWidth = 2;
+                    for(let i=0; i<8; i++) {
+                        ctx.rotate(Math.PI / 4);
+                        ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(15, 0); ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+            },
+            update: function() {
+                // Spawn mines in the open spaces, not too close to pillars
+                if (frames % 150 === 0 && score > 2) {
+                    this.items.push({ 
+                        x: canvas.width, 
+                        y: Math.random() * (canvas.height - 80) + 40, 
+                        phase: Math.random() * Math.PI * 2,
+                        speedY: Math.random() * 0.05 + 0.02
+                    });
+                }
+                for (let i = 0; i < this.items.length; i++) {
+                    let m = this.items[i];
+                    m.x -= gameSpeed;
+                    m.y += Math.sin(frames * m.speedY + m.phase) * 1.5; // Bobbing motion
+                    
+                    // Collision (circle to rect approximation)
+                    let bx = ufo.x + 6, by = ufo.y + 6, bw = ufo.width - 12, bh = ufo.height - 12;
+                    let distX = Math.abs(m.x - (bx + bw/2));
+                    let distY = Math.abs(m.y - (by + bh/2));
+                    if (distX < (bw/2 + 10) && distY < (bh/2 + 10)) {
+                        gameOver();
+                    }
+                    
+                    if (m.x < -20) { this.items.splice(i, 1); i--; }
+                }
+            },
+            reset: function() { this.items = []; }
+        };
+
+        // Dynamic Enemies: Drones
+        const enemies = {
+            items: [],
+            draw: function() {
+                for (let e of this.items) {
+                    ctx.save();
+                    ctx.translate(e.x + 12, e.y + 12);
+                    // Drone body
+                    ctx.fillStyle = '#ff9999';
+                    ctx.beginPath(); ctx.moveTo(-12, -8); ctx.lineTo(12, 0); ctx.lineTo(-12, 8); ctx.fill();
+                    // Engine glow
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath(); ctx.arc(-8, 0, 3, 0, Math.PI*2); ctx.fill();
+                    ctx.restore();
+                }
+            },
+            update: function() {
+                // Spawn rate increases with score
+                let spawnRate = Math.max(90, 140 - Math.floor(score / 3) * 10);
+                if (frames % spawnRate === 0) {
+                    let type = Math.random() > 0.5 ? 'straight' : 'wave';
+                    this.items.push({ 
+                        x: canvas.width, 
+                        y: Math.random() * (canvas.height - 60) + 30, 
+                        type: type,
+                        phase: Math.random() * Math.PI * 2,
+                        speed: gameSpeed + 1 // Faster than pillars
+                    });
+                }
+                for (let i = 0; i < this.items.length; i++) {
+                    let e = this.items[i];
+                    e.x -= e.speed;
+                    if (e.type === 'wave') {
+                        e.y += Math.sin(frames * 0.08 + e.phase) * 2.5;
+                    }
+                    
+                    // Collision
+                    let bx = ufo.x + 6, by = ufo.y + 6, bw = ufo.width - 12, bh = ufo.height - 12;
+                    if (bx < e.x + 24 && bx + bw > e.x && by < e.y + 24 && by + bh > e.y) {
+                        gameOver();
+                    }
+                    
+                    if (e.x + 24 < 0) { this.items.splice(i, 1); i--; }
+                }
+            },
+            reset: function() { this.items = []; }
+        };
+
+        // Ground
         const ground = {
             x: 0,
             draw: function() {
-                // Base ground color
-                ctx.fillStyle = '#263238';
-                ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
-                
-                // Top border of ground
-                ctx.strokeStyle = '#00e5ff';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(0, canvas.height - 20);
-                ctx.lineTo(canvas.width, canvas.height - 20);
-                ctx.stroke();
-                
-                // Crater/surface details
+                ctx.fillStyle = '#263238'; ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+                ctx.strokeStyle = '#00e5ff'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(0, canvas.height - 20); ctx.lineTo(canvas.width, canvas.height - 20); ctx.stroke();
                 ctx.fillStyle = '#37474f';
-                for(let i = this.x; i < canvas.width; i += 40) {
-                    ctx.beginPath();
-                    ctx.arc(i + 20, canvas.height - 10, 8, 0, Math.PI, true);
-                    ctx.fill();
-                }
+                for(let i = this.x; i < canvas.width; i += 40) { ctx.beginPath(); ctx.arc(i + 20, canvas.height - 10, 8, 0, Math.PI, true); ctx.fill(); }
             },
-            update: function() {
-                this.x -= 2;
-                if (this.x <= -40) this.x = 0;
-            }
+            update: function() { this.x -= gameSpeed; if (this.x <= -40) this.x = 0; }
         };
 
         function draw() {
-            // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Draw Stars
+            // Draw Stars (parallax effect)
             ctx.fillStyle = '#fff';
-            for (let star of stars) {
-                ctx.globalAlpha = star.opacity;
-                ctx.beginPath();
-                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-                ctx.fill();
+            for (let s of stars) { 
+                ctx.globalAlpha = s.opacity; 
+                ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill(); 
             }
-            ctx.globalAlpha = 1.0; // Reset opacity
+            ctx.globalAlpha = 1.0;
             
-            obstacles.draw();
+            pillars.draw();
+            mines.draw();
+            enemies.draw();
             ground.draw();
             ufo.draw();
         }
 
         function update() {
             ufo.update();
-            obstacles.update();
+            pillars.update();
+            mines.update();
+            enemies.update();
             ground.update();
             frames++;
         }
@@ -403,20 +384,17 @@
         }
 
         function resetGame() {
-            ufo.y = 150;
-            ufo.velocity = 0;
-            obstacles.reset();
-            score = 0;
-            frames = 0;
-            scoreDisplay.innerText = score;
+            ufo.y = 150; ufo.velocity = 0;
+            pillars.reset(); mines.reset(); enemies.reset();
+            score = 0; frames = 0; gameSpeed = 2;
+            scoreDisplay.innerText = '0';
             startGame();
         }
 
-        // Input handling
+        // Input
         function handleInput(e) {
             if (e.type === 'keydown' && e.code !== 'Space') return;
-            if (e.type === 'keydown') e.preventDefault(); // Prevent scrolling
-            
+            if (e.type === 'keydown') e.preventDefault();
             if (gameRunning) {
                 ufo.jump();
             } else if (startScreen.style.display !== 'none') {
@@ -425,13 +403,10 @@
                 resetGame();
             }
         }
-
+        
         window.addEventListener('keydown', handleInput);
         canvas.addEventListener('mousedown', handleInput);
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Prevent zoom/scroll
-            handleInput(e);
-        }, { passive: false });
+        canvas.addEventListener('touchstart', e => { e.preventDefault(); handleInput(e); }, { passive: false });
 
         // Initial draw
         draw();
