@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ancient Empires Clone</title>
+    <style>
+        :root {
+            --bg-color: #2c3e50;
+            --panel-bg: #34495e;
+            --text-color: #ecf0f1;
+            --accent: #e67e22;
+            --player-color: #3498db;
+            --enemy-color: #e74c3c;
+            --tile-size: 50px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+
+        h1 { margin: 0 0 10px 0; font-size: 24px; color: var(--accent); }
+
+        #game-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(10, var(--tile-size));
+            grid-template-rows: repeat(10, var(--tile-size));
+            gap: 2px;
+            background-color: #1a252f;
+            border: 4px solid #1a252f;
+            border-radius: 4px;
+        }
+
+        .tile {
+            width: var(--tile-size);
+            height: var(--tile-size);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+
+        .tile.grass { background-color: #27ae60; }
+        .tile.forest { background-color: #1e8449; }
+        .tile.mountain { background-color: #7f8c8d; cursor: not-allowed; }
+        .tile.castle { background-color: #f1c40f; }
+
+        .tile.highlight-move {
+            background-color: rgba(52, 152, 219, 0.6) !important;
+            box-shadow: inset 0 0 10px var(--player-color);
+        }
+
+        .tile.highlight-attack {
+            background-color: rgba(231, 76, 60, 0.6) !important;
+            box-shadow: inset 0 0 10px var(--enemy-color);
+        }
+
+        .unit {
+            width: 80%;
+            height: 80%;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            position: relative;
+            transition: transform 0.2s;
+            z-index: 10;
+        }
+
+        .unit.player {
+            background-color: var(--player-color);
+            border: 3px solid #2980b9;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .unit.enemy {
+            background-color: var(--enemy-color);
+            border: 3px solid #c0392b;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .unit.exhausted {
+            opacity: 0.6;
+            filter: grayscale(0.5);
+        }
+
+        .hp-bar {
+            position: absolute;
+            bottom: -6px;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background-color: #000;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .hp-fill {
+            height: 100%;
+            background-color: #2ecc71;
+            transition: width 0.3s;
+        }
+
+        #sidebar {
+            width: 250px;
+            background-color: var(--panel-bg);
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .panel {
+            background-color: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .panel h3 { margin-top: 0; color: var(--accent); font-size: 16px; border-bottom: 1px solid #555; padding-bottom: 5px;}
+
+        #turn-indicator {
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .turn-player { background-color: var(--player-color); color: white; }
+        .turn-enemy { background-color: var(--enemy-color); color: white; }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover { background-color: #d35400; }
+        button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+
+        #log {
+            height: 150px;
+            overflow-y: auto;
+            font-size: 13px;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column-reverse; /* Newest at bottom visually, but we prepend */
+        }
+
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 2px; }
+        .log-damage { color: #e74c3c; }
+        .log-heal { color: #2ecc71; }
+        .log-info { color: #3498db; }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; }
+        
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 100;
+        }
+        #overlay h2 { font-size: 48px; color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <h1>⚔️ Ancient Empires Lite ⚔️</h1>
+
+    <div id="game-container">
+        <div id="grid"></div>
+
+        <div id="sidebar">
+            <div id="turn-indicator" class="turn-player">Player's Turn</div>
+            <button id="end-turn-btn" onclick="game.endTurn()">End Turn</button>
+            
+            <div class="panel">
+                <h3>Selected Unit</h3>
+                <div id="unit-stats">
+                    <div class="stat-row"><span>Unit:</span> <span id="stat-name">None</span></div>
+                    <div class="stat-row"><span>HP:</span> <span id="stat-hp">-</span></div>
+                    <div class="stat-row"><span>Attack:</span> <span id="stat-atk">-</span></div>
+                    <div class="stat-row"><span>Move:</span> <span id="stat-move">-</span></div>
+                    <div class="stat-row"><span>Range:</span> <span id="stat-range">-</span></div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Combat Log</h3>
+                <div id="log"></div>
+            </div>
+            
+            <div class="panel" style="font-size: 12px; color: #bdc3c7;">
+                <strong>How to Play:</strong><br>
+                1. Click a blue unit to select it.<br>
+                2. Click a highlighted green tile to move.<br>
+                3. Click a highlighted red enemy to attack.<br>
+                4. Defeat all red units to win!
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h2 id="overlay-msg">Victory!</h2>
+        <button onclick="location.reload()">Play Again</button>
+    </div>
+
+<script>
+// --- Game Configuration ---
+const COLS = 10;
+const ROWS = 10;
+
+const TERRAIN = {
+    GRASS: { symbol: '', cost: 1, class: 'grass' },
+    FOREST: { symbol: '🌲', cost: 2, class: 'forest' },
+    MOUNTAIN: { symbol: '⛰️', cost: 99, class: 'mountain' },
+    CASTLE: { symbol: '🏰', cost: 1, class: 'castle' }
+};
+
+const UNIT_TYPES = {
+    KNIGHT: { name: 'Knight', symbol: '🛡️', move: 4, range: 1, atk: 6, maxHp: 12 },
+    ARCHER: { name: 'Archer', symbol: '🏹', move: 3, range: 2, atk: 5, maxHp: 8 },
+    MAGE:   { name: 'Mage',   symbol: '🔮', move: 3, range: 2, atk: 7, maxHp: 6 }
+};
+
+// --- Game State ---
+class Game {
+    constructor() {
+        this.grid = [];
+        this.units = [];
+        this.turn = 'player'; // 'player' or 'enemy'
+        this.selectedUnit = null;
+        this.validMoves = [];
+        this.validAttacks = [];
+        this.gameOver = false;
+        
+        this.initMap();
+        this.initUnits();
+        this.render();
+        this.log("Game started. Player's turn.", "log-info");
+    }
+
+    initMap() {
+        // 0: Grass, 1: Forest, 2: Mountain, 3: Castle
+        const mapData = [
+            [3, 0, 0, 1, 2, 2, 1, 0, 0, 3],
+            [0, 0, 1, 1, 2, 2, 1, 1, 0, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0, 1, 0],
+            [1, 1, 0, 2, 0, 0, 2, 0, 1, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 2, 0, 0, 2, 0, 1, 1],
+            [0, 1, 0, 0, 0, 0, 0, 0, 1, 0],
+            [0, 0, 1, 1, 2, 2, 1, 1, 0, 0],
+            [3, 0, 0, 1, 2, 2, 1, 0, 0, 3]
+        ];
+
+        for (let y = 0; y < ROWS; y++) {
+            let row = [];
+            for (let x = 0; x < COLS; x++) {
+                let type = Object.keys(TERRAIN)[mapData[y][x]];
+                row.push({ x, y, type: TERRAIN[type] });
+            }
+            this.grid.push(row);
+        }
+    }
+
+    initUnits() {
+        // Player Units (Blue, bottom)
+        this.addUnit('KNIGHT', 'player', 4, 9);
+        this.addUnit('ARCHER', 'player', 3, 9);
+        this.addUnit('MAGE', 'player', 5, 9);
+        this.addUnit('KNIGHT', 'player', 2, 8);
+        this.addUnit('ARCHER', 'player', 6, 8);
+
+        // Enemy Units (Red, top)
+        this.addUnit('KNIGHT', 'enemy', 4, 0);
+        this.addUnit('ARCHER', 'enemy', 3, 0);
+        this.addUnit('MAGE', 'enemy', 5, 0);
+        this.addUnit('KNIGHT', 'enemy', 2, 1);
+        this.addUnit('ARCHER', 'enemy', 6, 1);
+    }
+
+    addUnit(typeKey, owner, x, y) {
+        const template = UNIT_TYPES[typeKey];
+        this.units.push({
+            id: Math.random().toString(36).substr(2, 9),
+            type: template.name,
+            symbol: template.symbol,
+            owner: owner,
+            x: x, y: y,
+            hp: template.maxHp,
+            maxHp: template.maxHp,
+            move: template.move,
+            range: template.range,
+            atk: template.atk,
+            hasActed: false
+        });
+    }
+
+    getUnitAt(x, y) {
+        return this.units.find(u => u.x === x && u.y === y && u.hp > 0);
+    }
+
+    getValidMoves(unit) {
+        let moves = [];
+        let queue = [{x: unit.x, y: unit.y, dist: 0}];
+        let visited = new Set();
+        visited.add(`${unit.x},${unit.y}`);
+
+        while (queue.length > 0) {
+            let curr = queue.shift();
+            if (curr.dist > 0) moves.push({x: curr.x, y: curr.y});
+            if (curr.dist >= unit.move) continue;
+
+            const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+            for (let [dx, dy] of dirs) {
+                let nx = curr.x + dx, ny = curr.y + dy;
+                if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+                    let terrain = this.grid[ny][nx].type;
+                    if (terrain.cost >= 99) continue; // Impassable
+                    
+                    // Can't move through other units
+                    if (this.getUnitAt(nx, ny)) continue;
+
+                    if (curr.dist + terrain.cost <= unit.move) {
+                        let key = `${nx},${ny}`;
+                        if (!visited.has(key)) {
+                            visited.add(key);
+                            queue.push({x: nx, y: ny, dist: curr.dist + terrain.cost});
+                        }
+                    }
+                }
+            }
+        }
+        return moves;
+    }
+
+    getValidAttacks(unit) {
+        let targets = [];
+        for (let u of this.units) {
+            if (u.owner !== unit.owner && u.hp > 0) {
+                let dist = Math.abs(u.x - unit.x) + Math.abs(u.y - unit.y);
+                if (dist <= unit.range) {
+                    targets.push(u);
+                }
+            }
+        }
+        return targets;
+    }
+
+    handleTileClick(x, y) {
+        if (this.gameOver || this.turn !== 'player') return;
+
+        const clickedUnit = this.getUnitAt(x, y);
+
+        // 1. Select a unit
+        if (!this.selectedUnit) {
+            if (clickedUnit && clickedUnit.owner === 'player' && !clickedUnit.hasActed) {
+                this.selectedUnit = clickedUnit;
+                this.validMoves = this.getValidMoves(clickedUnit);
+                this.updateUI();
+            }
+            return;
+        }
+
+        // 2. Move unit
+        const isMoveValid = this.validMoves.some(m => m.x === x && m.y === y);
+        if (isMoveValid && !clickedUnit) {
+            this.selectedUnit.x = x;
+            this.selectedUnit.y = y;
+            this.validMoves = [];
+            this.validAttacks = this.getValidAttacks(this.selectedUnit);
+            this.updateUI();
+            return;
+        }
+
+        // 3. Attack unit
+        const isAttackValid = this.validAttacks.some(u => u.x === x && u.y === y);
+        if (isAttackValid && clickedUnit && clickedUnit.owner === 'enemy') {
+            this.combat(this.selectedUnit, clickedUnit);
+            this.selectedUnit.hasActed = true;
+            this.selectedUnit = null;
+            this.validAttacks = [];
+            this.checkWinCondition();
+            this.updateUI();
+            return;
+        }
+
+        // 4. Deselect or select another unit
+        if (clickedUnit && clickedUnit.owner === 'player' && !clickedUnit.hasActed) {
+            this.selectedUnit = clickedUnit;
+            this.validMoves = this.getValidMoves(clickedUnit);
+            this.validAttacks = [];
+        } else {
+            this.selectedUnit = null;
+            this.validMoves = [];
+            this.validAttacks = [];
+        }
+        this.updateUI();
+    }
+
+    combat(attacker, defender) {
+        let damage = attacker.atk;
+        defender.hp -= damage;
+        this.log(`${attacker.type} attacked ${defender.type} for ${damage} damage!`, "log-damage");
+        
+        // Counter-attack if adjacent and defender is alive
+        if (defender.hp > 0) {
+            let dist = Math.abs(attacker.x - defender.x) + Math.abs(attacker.y - defender.y);
+            if (dist <= defender.range) {
+                let counterDmg = defender.atk;
+                attacker.hp -= counterDmg;
+                this.log(`${defender.type} counter-attacked for ${counterDmg} damage!`, "log-damage");
+                if (attacker.hp <= 0) {
+                    this.log(`${attacker.type} was defeated!`, "log-damage");
+                }
+            }
+        } else {
+            this.log(`${defender.type} was defeated!`, "log-info");
+        }
+    }
+
+    async endTurn() {
+        if (this.gameOver) return;
+        
+        this.selectedUnit = null;
+        this.validMoves = [];
+        this.validAttacks = [];
+        
+        if (this.turn === 'player') {
+            this.turn = 'enemy';
+            this.updateUI();
+            await new Promise(r => setTimeout(r, 500)); // Brief pause for UX
+            this.enemyTurn();
+        } else {
+            this.turn = 'player';
+            this.units.forEach(u => u.hasActed = false);
+            this.updateUI();
+        }
+    }
+
+    async enemyTurn() {
+        let enemies = this.units.filter(u => u.owner === 'enemy' && u.hp > 0);
+        
+        for (let unit of enemies) {
+            if (unit.hp <= 0 || this.gameOver) continue;
+
+            let moves = this.getValidMoves(unit);
+            let bestMove = null;
+            let bestScore = -9999;
+            let bestTarget = null;
+
+            // Evaluate all possible moves
+            for (let move of moves) {
+                let targets = [];
+                for (let pUnit of this.units) {
+                    if (pUnit.owner === 'player' && pUnit.hp > 0) {
+                        let dist = Math.abs(pUnit.x - move.x) + Math.abs(pUnit.y - move.y);
+                        if (dist <= unit.range) {
+                            targets.push(pUnit);
+                        }
+                    }
+                }
+
+                let score = 0;
+                if (targets.length > 0) {
+                    score += 100; // High priority to attack
+                    targets.sort((a, b) => a.hp - b.hp); // Target weakest
+                    bestTarget = targets[0];
+                } else {
+                    // Move closer to nearest player unit
+                    let minDist = 999;
+                    for (let pUnit of this.units) {
+                        if (pUnit.owner === 'player' && pUnit.hp > 0) {
+                            let dist = Math.abs(pUnit.x - move.x) + Math.abs(pUnit.y - move.y);
+                            if (dist < minDist) minDist = dist;
+                        }
+                    }
+                    score -= minDist;
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            }
+
+            if (bestMove) {
+                // Visual delay for each unit's action
+                await new Promise(r => setTimeout(r, 600));
+                
+                unit.x = bestMove.x;
+                unit.y = bestMove.y;
+                this.render(); // Re-render to show movement
+
+                if (bestTarget) {
+                    await new Promise(r => setTimeout(r, 400));
+                    this.combat(unit, bestTarget);
+                }
+            }
+        }
+
+        this.checkWinCondition();
+        if (!this.gameOver) {
+            this.endTurn();
+        }
+    }
+
+    checkWinCondition() {
+        let playersAlive = this.units.filter(u => u.owner === 'player' && u.hp > 0).length;
+        let enemiesAlive = this.units.filter(u => u.owner === 'enemy' && u.hp > 0).length;
+
+        if (enemiesAlive === 0) {
+            this.gameOver = true;
+            document.getElementById('overlay-msg').innerText = "Victory!";
+            document.getElementById('overlay-msg').style.color = "#2ecc71";
+            document.getElementById('overlay').style.display = 'flex';
+        } else if (playersAlive === 0) {
+            this.gameOver = true;
+            document.getElementById('overlay-msg').innerText = "Defeat!";
+            document.getElementById('overlay-msg').style.color = "#e74c3c";
+            document.getElementById('overlay').style.display = 'flex';
+        }
+    }
+
+    log(msg, className = "") {
+        const logEl = document.getElementById('log');
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${className}`;
+        entry.innerText = `> ${msg}`;
+        logEl.prepend(entry);
+    }
+
+    updateUI() {
+        // Turn indicator
+        const turnEl = document.getElementById('turn-indicator');
+        turnEl.innerText = this.turn === 'player' ? "Player's Turn" : "Enemy's Turn";
+        turnEl.className = this.turn === 'player' ? "turn-player" : "turn-enemy";
+        
+        document.getElementById('end-turn-btn').disabled = (this.turn !== 'player' || this.gameOver);
+
+        // Stats
+        if (this.selectedUnit) {
+            document.getElementById('stat-name').innerText = this.selectedUnit.symbol + " " + this.selectedUnit.type;
+            document.getElementById('stat-hp').innerText = `${this.selectedUnit.hp}/${this.selectedUnit.maxHp}`;
+            document.getElementById('stat-atk').innerText = this.selectedUnit.atk;
+            document.getElementById('stat-move').innerText = this.selectedUnit.move;
+            document.getElementById('stat-range').innerText = this.selectedUnit.range;
+        } else {
+            document.getElementById('stat-name').innerText = "None";
+            document.getElementById('stat-hp').innerText = "-";
+            document.getElementById('stat-atk').innerText = "-";
+            document.getElementById('stat-move').innerText = "-";
+            document.getElementById('stat-range').innerText = "-";
+        }
+
+        this.render();
+    }
+
+    render() {
+        const gridEl = document.getElementById('grid');
+        gridEl.innerHTML = '';
+
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < COLS; x++) {
+                const tileData = this.grid[y][x];
+                const tile = document.createElement('div');
+                tile.className = `tile ${tileData.type.class}`;
+                tile.innerText = tileData.type.symbol;
+                tile.dataset.x = x;
+                tile.dataset.y = y;
+
+                // Highlight valid moves
+                if (this.validMoves.some(m => m.x === x && m.y === y)) {
+                    tile.classList.add('highlight-move');
+                }
+
+                // Highlight valid attacks
+                if (this.validAttacks.some(u => u.x === x && u.y === y)) {
+                    tile.classList.add('highlight-attack');
+                }
+
+                // Render unit
+                const unit = this.getUnitAt(x, y);
+                if (unit) {
+                    const unitEl = document.createElement('div');
+                    unitEl.className = `unit ${unit.owner} ${unit.hasActed ? 'exhausted' : ''}`;
+                    unitEl.innerText = unit.symbol;
+                    
+                    const hpBar = document.createElement('div');
+                    hpBar.className = 'hp-bar';
+                    const hpFill = document.createElement('div');
+                    hpFill.className = 'hp-fill';
+                    hpFill.style.width = `${(unit.hp / unit.maxHp) * 100}%`;
+                    if (unit.hp / unit.maxHp < 0.3) hpFill.style.backgroundColor = '#e74c3c';
+                    else if (unit.hp / unit.maxHp < 0.6) hpFill.style.backgroundColor = '#f1c40f';
+                    
+                    hpBar.appendChild(hpFill);
+                    unitEl.appendChild(hpBar);
+                    tile.appendChild(unitEl);
+                }
+
+                tile.addEventListener('click', () => this.handleTileClick(x, y));
+                gridEl.appendChild(tile);
+            }
+        }
+    }
+}
+
+// Start the game
+const game = new Game();
+</script>
+</body>
+</html>
