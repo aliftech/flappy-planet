@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stickman Fighting Adventure</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #1a1a2e;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+            border: 2px solid #16213e;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        canvas {
+            background: linear-gradient(to bottom, #0f3460, #1a1a2e);
+            display: block;
+        }
+
+        /* UI Overlays */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            padding: 20px;
+        }
+
+        .health-bar-container {
+            position: absolute;
+            top: 20px;
+            width: 300px;
+            height: 24px;
+            background: #333;
+            border: 2px solid #fff;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        #player-hp-bar { left: 20px; }
+        #enemy-hp-bar { right: 20px; }
+
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff416c, #ff4b2b);
+            width: 100%;
+            transition: width 0.2s ease-out;
+        }
+
+        #player-hp-bar .health-fill {
+            background: linear-gradient(90deg, #00b09b, #96c93d);
+        }
+
+        .hp-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            font-size: 14px;
+            text-shadow: 1px 1px 2px black;
+            z-index: 10;
+        }
+
+        #wave-info {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            text-align: center;
+        }
+
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+            text-align: center;
+            background: rgba(0,0,0,0.5);
+            padding: 8px 16px;
+            border-radius: 20px;
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 100;
+        }
+
+        .hidden { display: none !important; }
+
+        h1 { font-size: 48px; margin-bottom: 10px; color: #00fff2; text-transform: uppercase; letter-spacing: 3px; }
+        h2 { font-size: 32px; margin-bottom: 20px; color: #ff416c; }
+        p { font-size: 18px; margin-bottom: 30px; color: #ccc; max-width: 400px; text-align: center; line-height: 1.5; }
+
+        button {
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a1a2e;
+            background: #00fff2;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(0, 255, 242, 0.4);
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            background: #fff;
+            box-shadow: 0 6px 20px rgba(0, 255, 242, 0.6);
+        }
+
+        .damage-text {
+            position: absolute;
+            font-weight: bold;
+            font-size: 20px;
+            color: #ff416c;
+            pointer-events: none;
+            animation: floatUp 0.8s ease-out forwards;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-40px) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+        
+        <div class="ui-layer">
+            <div id="player-hp-bar" class="health-bar-container">
+                <div class="hp-text">PLAYER</div>
+                <div class="health-fill" id="player-hp-fill"></div>
+            </div>
+            
+            <div id="wave-info">WAVE 1<br><span style="font-size:14px; color:#aaa;">The Outskirts</span></div>
+            
+            <div id="enemy-hp-bar" class="health-bar-container">
+                <div class="hp-text">ENEMIES</div>
+                <div class="health-fill" id="enemy-hp-fill"></div>
+            </div>
+
+            <div id="controls-hint">
+                [A / D] or [← / →] Move &nbsp;|&nbsp; [W] or [↑] Jump &nbsp;|&nbsp; [SPACE] or [J] Attack
+            </div>
+        </div>
+
+        <div id="start-screen" class="screen">
+            <h1>Stickman Adventure</h1>
+            <p>Defeat waves of enemies to survive. You heal 50% HP between waves. How far can you go?</p>
+            <button onclick="startGame()">Start Adventure</button>
+        </div>
+
+        <div id="game-over-screen" class="screen hidden">
+            <h2>Game Over</h2>
+            <p id="final-score">You survived 3 waves.</p>
+            <button onclick="resetGame()">Try Again</button>
+        </div>
+
+        <div id="victory-screen" class="screen hidden">
+            <h1 style="color: #ffd700;">Victory!</h1>
+            <p>You have defeated the final boss and conquered the adventure!</p>
+            <button onclick="resetGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game Constants
+        const GROUND_Y = 420;
+        const GRAVITY = 0.6;
+        const FRICTION = 0.8;
+        
+        // Game State
+        let gameRunning = false;
+        let wave = 1;
+        let maxWaves = 5;
+        let enemies = [];
+        let particles = [];
+        let damageTexts = [];
+        let screenShake = 0;
+        
+        // Input State
+        const keys = {
+            left: false,
+            right: false,
+            up: false,
+            attack: false
+        };
+
+        // Wave Names
+        const waveNames = ["The Outskirts", "Dark Forest", "Canyon of Echoes", "The Fortress", "Final Stand"];
+
+        class Fighter {
+            constructor(x, y, color, isPlayer = false) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.width = 30;
+                this.height = 60;
+                this.color = color;
+                this.isPlayer = isPlayer;
+                
+                this.maxHealth = 100;
+                this.health = 100;
+                this.speed = isPlayer ? 5 : 3 + (wave * 0.5);
+                this.jumpPower = -12;
+                
+                this.facingRight = true;
+                this.state = 'idle'; // idle, run, jump, attack, hit
+                this.animFrame = 0;
+                
+                this.attackCooldown = 0;
+                this.hitStun = 0;
+                this.isAttacking = false;
+                this.attackFrame = 0;
+            }
+
+            update() {
+                // Physics
+                this.vy += GRAVITY;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Ground collision
+                if (this.y >= GROUND_Y) {
+                    this.y = GROUND_Y;
+                    this.vy = 0;
+                }
+
+                // Wall collision
+                if (this.x < 20) this.x = 20;
+                if (this.x > canvas.width - 20) this.x = canvas.width - 20;
+
+                // Friction
+                this.vx *= FRICTION;
+
+                // State management
+                if (this.hitStun > 0) {
+                    this.hitStun--;
+                    this.state = 'hit';
+                } else if (this.isAttacking) {
+                    this.attackFrame++;
+                    if (this.attackFrame > 15) {
+                        this.isAttacking = false;
+                        this.attackFrame = 0;
+                    }
+                } else if (Math.abs(this.vx) > 0.5 && this.y === GROUND_Y) {
+                    this.state = 'run';
+                    this.animFrame++;
+                } else if (this.y < GROUND_Y) {
+                    this.state = 'jump';
+                } else {
+                    this.state = 'idle';
+                    this.animFrame = 0;
+                }
+
+                if (this.attackCooldown > 0) this.attackCooldown--;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // Hit flash effect
+                if (this.hitStun > 0 && Math.floor(Date.now() / 50) % 2 === 0) {
+                    ctx.globalAlpha = 0.5;
+                    ctx.strokeStyle = '#ffffff';
+                } else {
+                    ctx.strokeStyle = this.color;
+                }
+                
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                const dir = this.facingRight ? 1 : -1;
+                const headY = -45;
+                const bodyTop = -35;
+                const bodyBottom = 5;
+
+                // Head
+                ctx.beginPath();
+                ctx.arc(0, headY, 10, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Body
+                ctx.beginPath();
+                ctx.moveTo(0, bodyTop);
+                ctx.lineTo(0, bodyBottom);
+                ctx.stroke();
+
+                // Animation offsets
+                let legOffset = 0;
+                let armOffset = 0;
+                if (this.state === 'run') {
+                    legOffset = Math.sin(this.animFrame * 0.3) * 12;
+                    armOffset = Math.cos(this.animFrame * 0.3) * 10;
+                } else if (this.state === 'jump') {
+                    legOffset = -5;
+                    armOffset = -10;
+                }
+
+                // Legs
+                ctx.beginPath();
+                ctx.moveTo(0, bodyBottom);
+                ctx.lineTo(-10 + legOffset, 30); // Left leg
+                ctx.moveTo(0, bodyBottom);
+                ctx.lineTo(10 - legOffset, 30);  // Right leg
+                ctx.stroke();
+
+                // Arms
+                ctx.beginPath();
+                if (this.isAttacking) {
+                    // Attack pose (punch forward)
+                    ctx.moveTo(0, bodyTop + 5);
+                    ctx.lineTo(25 * dir, bodyTop + 5); // Punching arm
+                    ctx.moveTo(0, bodyTop + 5);
+                    ctx.lineTo(-10 * dir, bodyTop + 15); // Back arm
+                } else {
+                    // Normal/Run pose
+                    ctx.moveTo(0, bodyTop + 5);
+                    ctx.lineTo(-15 + armOffset, bodyTop + 20);
+                    ctx.moveTo(0, bodyTop + 5);
+                    ctx.lineTo(15 - armOffset, bodyTop + 20);
+                }
+                ctx.stroke();
+
+                // Attack visual effect (glowing fist)
+                if (this.isAttacking && this.attackFrame < 8) {
+                    ctx.fillStyle = '#ffff00';
+                    ctx.beginPath();
+                    ctx.arc(25 * dir, bodyTop + 5, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+
+            attack() {
+                if (this.attackCooldown === 0 && this.hitStun === 0) {
+                    this.isAttacking = true;
+                    this.attackFrame = 0;
+                    this.attackCooldown = 30; // frames
+                    this.vx = this.facingRight ? 3 : -3; // Small lunge
+                }
+            }
+
+            takeDamage(amount, knockbackDir) {
+                this.health -= amount;
+                this.hitStun = 20;
+                this.vx = knockbackDir * 8;
+                this.vy = -5;
+                screenShake = 5;
+                
+                // Spawn particles
+                for (let i = 0; i < 8; i++) {
+                    particles.push(new Particle(this.x, this.y - 30, this.color));
+                }
+                
+                // Spawn damage text
+                damageTexts.push(new DamageText(this.x, this.y - 60, amount));
+
+                if (this.health <= 0) {
+                    this.health = 0;
+                    if (!this.isPlayer) {
+                        // Enemy death particles
+                        for (let i = 0; i < 15; i++) {
+                            particles.push(new Particle(this.x, this.y - 30, '#ff416c', 3));
+                        }
+                    }
+                }
+            }
+
+            getAttackBox() {
+                if (!this.isAttacking || this.attackFrame > 8) return null;
+                const dir = this.facingRight ? 1 : -1;
+                return {
+                    x: this.x + (10 * dir),
+                    y: this.y - 40,
+                    width: 40,
+                    height: 50
+                };
+            }
+
+            getBodyBox() {
+                return {
+                    x: this.x - 15,
+                    y: this.y - 50,
+                    width: 30,
+                    height: 60
+                };
+            }
+        }
+
+        class Player extends Fighter {
+            constructor() {
+                super(100, GROUND_Y, '#00fff2', true);
+            }
+
+            update() {
+                if (this.hitStun === 0) {
+                    if (keys.left) {
+                        this.vx = -this.speed;
+                        this.facingRight = false;
+                    }
+                    if (keys.right) {
+                        this.vx = this.speed;
+                        this.facingRight = true;
+                    }
+                    if (keys.up && this.y === GROUND_Y) {
+                        this.vy = this.jumpPower;
+                    }
+                    if (keys.attack) {
+                        this.attack();
+                        keys.attack = false; // Prevent holding
+                    }
+                }
+                super.update();
+            }
+        }
+
+        class Enemy extends Fighter {
+            constructor(x, y) {
+                super(x, y, '#ff416c', false);
+                this.maxHealth = 80 + (wave * 20);
+                this.health = this.maxHealth;
+                this.attackRange = 60;
+                this.reactionTime = 0;
+            }
+
+            update(player) {
+                if (this.hitStun > 0 || this.health <= 0) {
+                    super.update();
+                    return;
+                }
+
+                const dx = player.x - this.x;
+                const distance = Math.abs(dx);
+                
+                this.facingRight = dx > 0;
+
+                if (distance > this.attackRange) {
+                    // Move towards player
+                    this.vx = this.facingRight ? this.speed : -this.speed;
+                    this.state = 'run';
+                    this.animFrame++;
+                } else {
+                    // Attack range
+                    this.vx = 0;
+                    if (this.reactionTime <= 0) {
+                        this.attack();
+                        this.reactionTime = 60 + Math.random() * 60; // Random delay between attacks
+                    } else {
+                        this.reactionTime--;
+                    }
+                }
+
+                // Random jump
+                if (Math.random() < 0.01 && this.y === GROUND_Y) {
+                    this.vy = this.jumpPower;
+                }
+
+                super.update();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color, speed = 2) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 10 * speed;
+                this.vy = (Math.random() - 0.5) * 10 * speed;
+                this.life = 1.0;
+                this.color = color;
+                this.size = Math.random() * 4 + 2;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += 0.2; // gravity
+                this.life -= 0.03;
+            }
+
+            draw(ctx) {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        class DamageText {
+            constructor(x, y, amount) {
+                this.x = x;
+                this.y = y;
+                this.amount = amount;
+                this.life = 1.0;
+                this.vy = -2;
+            }
+
+            update() {
+                this.y += this.vy;
+                this.life -= 0.02;
+            }
+
+            draw(ctx) {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = '#ff416c';
+                ctx.font = 'bold 20px Arial';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 3;
+                ctx.strokeText(this.amount, this.x, this.y);
+                ctx.fillText(this.amount, this.x, this.y);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        let player;
+
+        function init() {
+            player = new Player();
+            enemies = [];
+            particles = [];
+            damageTexts = [];
+            wave = 1;
+            spawnWave();
+            updateUI();
+        }
+
+        function spawnWave() {
+            enemies = [];
+            const count = Math.min(1 + Math.floor(wave / 2), 4);
+            for (let i = 0; i < count; i++) {
+                // Spawn enemies off-screen to the right
+                enemies.push(new Enemy(canvas.width + 100 + (i * 80), GROUND_Y));
+            }
+            
+            document.getElementById('wave-info').innerHTML = 
+                `WAVE ${wave}<br><span style="font-size:14px; color:#aaa;">${waveNames[wave-1] || 'Unknown Territory'}</span>`;
+            
+            // Heal player 50% between waves (except wave 1)
+            if (wave > 1) {
+                player.health = Math.min(player.maxHealth, player.health + 50);
+                showDamageText(player.x, player.y - 60, "+50 HP", "#00ff00");
+            }
+        }
+
+        function showDamageText(x, y, text, color) {
+            const el = document.createElement('div');
+            el.className = 'damage-text';
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            el.style.color = color;
+            el.innerText = text;
+            document.getElementById('game-container').appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
+
+        function checkCollisions() {
+            // Player attacks enemies
+            const pBox = player.getAttackBox();
+            if (pBox) {
+                enemies.forEach(enemy => {
+                    if (enemy.health > 0 && rectIntersect(pBox, enemy.getBodyBox())) {
+                        // Prevent multiple hits in one attack animation
+                        if (!enemy.hitStun) {
+                            const dmg = 20 + Math.floor(Math.random() * 10);
+                            enemy.takeDamage(dmg, player.facingRight ? 1 : -1);
+                        }
+                    }
+                });
+            }
+
+            // Enemies attack player
+            enemies.forEach(enemy => {
+                const eBox = enemy.getAttackBox();
+                if (eBox && enemy.health > 0) {
+                    if (rectIntersect(eBox, player.getBodyBox())) {
+                        if (!player.hitStun) {
+                            const dmg = 10 + (wave * 2);
+                            player.takeDamage(dmg, enemy.facingRight ? 1 : -1);
+                        }
+                    }
+                }
+            });
+        }
+
+        function rectIntersect(r1, r2) {
+            return !(r2.x > r1.x + r1.width || 
+                     r2.x + r2.width < r1.x || 
+                     r2.y > r1.y + r1.height || 
+                     r2.y + r2.height < r1.y);
+        }
+
+        function updateUI() {
+            const playerPct = (player.health / player.maxHealth) * 100;
+            document.getElementById('player-hp-fill').style.width = playerPct + '%';
+            
+            const totalEnemyHealth = enemies.reduce((sum, e) => sum + e.health, 0);
+            const maxEnemyHealth = enemies.reduce((sum, e) => sum + e.maxHealth, 0);
+            const enemyPct = maxEnemyHealth > 0 ? (totalEnemyHealth / maxEnemyHealth) * 100 : 0;
+            document.getElementById('enemy-hp-fill').style.width = enemyPct + '%';
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            // Screen shake
+            let shakeX = 0, shakeY = 0;
+            if (screenShake > 0) {
+                shakeX = (Math.random() - 0.5) * screenShake;
+                shakeY = (Math.random() - 0.5) * screenShake;
+                screenShake *= 0.9;
+                if (screenShake < 0.5) screenShake = 0;
+            }
+
+            ctx.save();
+            ctx.translate(shakeX, shakeY);
+
+            // Clear canvas
+            ctx.clearRect(-10, -10, canvas.width + 20, canvas.height + 20);
+
+            // Draw background elements (ground)
+            ctx.fillStyle = '#16213e';
+            ctx.fillRect(0, GROUND_Y + 30, canvas.width, canvas.height - GROUND_Y);
+            ctx.strokeStyle = '#00fff2';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, GROUND_Y + 30);
+            ctx.lineTo(canvas.width, GROUND_Y + 30);
+            ctx.stroke();
+
+            // Update and draw player
+            player.update();
+            player.draw(ctx);
+
+            // Update and draw enemies
+            enemies = enemies.filter(e => e.health > 0);
+            enemies.forEach(enemy => {
+                enemy.update(player);
+                enemy.draw(ctx);
+            });
+
+            // Check combat collisions
+            checkCollisions();
+
+            // Update and draw particles
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => {
+                p.update();
+                p.draw(ctx);
+            });
+
+            // Update and draw damage texts
+            damageTexts = damageTexts.filter(d => d.life > 0);
+            damageTexts.forEach(d => {
+                d.update();
+                d.draw(ctx);
+            });
+
+            ctx.restore();
+
+            // Game logic checks
+            updateUI();
+
+            if (player.health <= 0) {
+                endGame(false);
+                return;
+            }
+
+            if (enemies.length === 0) {
+                if (wave >= maxWaves) {
+                    endGame(true);
+                    return;
+                } else {
+                    wave++;
+                    spawnWave();
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            gameRunning = true;
+            init();
+            gameLoop();
+        }
+
+        function endGame(victory) {
+            gameRunning = false;
+            if (victory) {
+                document.getElementById('victory-screen').classList.remove('hidden');
+            } else {
+                document.getElementById('final-score').innerText = `You survived ${wave} wave${wave > 1 ? 's' : ''}.`;
+                document.getElementById('game-over-screen').classList.remove('hidden');
+            }
+        }
+
+        function resetGame() {
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('victory-screen').classList.add('hidden');
+            startGame();
+        }
+
+        // Input Listeners
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.left = true;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.right = true;
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.up = true;
+            if (e.key === ' ' || e.key === 'j' || e.key === 'J') keys.attack = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.left = false;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.right = false;
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.up = false;
+            if (e.key === ' ' || e.key === 'j' || e.key === 'J') keys.attack = false;
+        });
+
+        // Initial draw for background
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    </script>
+</body>
+</html>
