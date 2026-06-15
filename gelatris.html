@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GELATRIS: The Squishy Stack</title>
+    <style>
+        :root {
+            --bg-dark: #0f0c29;
+            --bg-mid: #302b63;
+            --bg-light: #24243e;
+            --glass: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--bg-dark), var(--bg-mid), var(--bg-light));
+            color: #fff;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+            background: linear-gradient(to bottom, #ffffff, #a0c4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+            animation: jelly-title 3s ease-in-out infinite;
+            text-align: center;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            letter-spacing: 6px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: -10px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+
+        @keyframes jelly-title {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            25% { transform: scale(1.05, 0.95) rotate(-1.5deg); }
+            50% { transform: scale(0.95, 1.05) rotate(1.5deg); }
+            75% { transform: scale(1.02, 0.98) rotate(0deg); }
+        }
+
+        .game-wrapper {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(20, 1fr);
+            gap: 2px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 6px;
+            border-radius: 12px;
+            box-shadow: 
+                inset 0 0 30px rgba(0,0,0,0.8), 
+                0 0 20px rgba(0, 242, 255, 0.1);
+            border: 2px solid var(--glass-border);
+            width: 300px;
+            height: 600px;
+        }
+
+        .cell {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 4px;
+        }
+
+        .gel-block {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 
+                inset 2px 2px 6px rgba(255, 255, 255, 0.8),
+                inset -2px -2px 6px rgba(0, 0, 0, 0.4),
+                0 4px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.1s;
+        }
+
+        .gel-block::before {
+            content: '';
+            position: absolute;
+            top: 12%;
+            left: 12%;
+            width: 35%;
+            height: 25%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 70%);
+            transform: rotate(-45deg);
+            filter: blur(1px);
+        }
+
+        .gel-block::after {
+            content: '';
+            position: absolute;
+            bottom: 10%;
+            right: 10%;
+            width: 25%;
+            height: 15%;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 70%);
+        }
+
+        .active-piece {
+            animation: pulse-gel 1.5s ease-in-out infinite;
+            z-index: 10;
+        }
+
+        @keyframes pulse-gel {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.04); filter: brightness(1.15); }
+        }
+
+        .color-1 { background: linear-gradient(135deg, #00f2ff, #00a8ff); }
+        .color-2 { background: linear-gradient(135deg, #2979ff, #0040ff); }
+        .color-3 { background: linear-gradient(135deg, #ff9100, #ff3d00); }
+        .color-4 { background: linear-gradient(135deg, #ffea00, #ffab00); }
+        .color-5 { background: linear-gradient(135deg, #00e676, #00c853); }
+        .color-6 { background: linear-gradient(135deg, #d500f9, #aa00ff); }
+        .color-7 { background: linear-gradient(135deg, #ff1744, #d50000); }
+
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 140px;
+        }
+
+        .panel-box {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .panel-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+        }
+
+        .score-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #00f2ff;
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
+        }
+
+        .high-score-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #ffea00;
+            text-shadow: 0 0 10px rgba(255, 234, 0, 0.5);
+        }
+
+        #next-piece {
+            display: grid;
+            gap: 2px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        #next-piece .gel-block {
+            width: 25px;
+            height: 25px;
+        }
+
+        .controls-hint {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+            line-height: 1.6;
+            text-align: left;
+        }
+
+        .key {
+            display: inline-block;
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .mobile-controls {
+            display: none;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .ctrl-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            color: white;
+            font-size: 1.5rem;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+        }
+
+        .ctrl-btn:active {
+            transform: scale(0.9);
+            background: rgba(255,255,255,0.2);
+        }
+
+        @media (max-width: 600px) {
+            .game-wrapper {
+                flex-direction: column;
+                align-items: center;
+                padding: 15px;
+            }
+            .grid-container {
+                width: 280px;
+                height: 560px;
+            }
+            .side-panel {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                min-width: auto;
+            }
+            .panel-box {
+                flex: 1;
+                min-width: 100px;
+            }
+            .controls-hint {
+                display: none;
+            }
+            .mobile-controls {
+                display: flex;
+            }
+            h1 { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>GELATRIS</h1>
+    <div class="subtitle">The Squishy Stack</div>
+
+    <div class="game-wrapper">
+        <div class="grid-container" id="grid"></div>
+        
+        <div class="side-panel">
+            <div class="panel-box">
+                <div class="panel-label">Score</div>
+                <div class="score-value" id="score">0</div>
+            </div>
+
+            <div class="panel-box">
+                <div class="panel-label">High Score</div>
+                <div class="high-score-value" id="high-score">0</div>
+            </div>
+            
+            <div class="panel-box">
+                <div class="panel-label">Next</div>
+                <div id="next-piece"></div>
+            </div>
+
+            <div class="panel-box controls-hint">
+                <div><span class="key">←</span> <span class="key">→</span> Move</div>
+                <div><span class="key">↑</span> Rotate</div>
+                <div><span class="key">↓</span> Soft Drop</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mobile-controls">
+        <button class="ctrl-btn" onclick="handleInput('left')">←</button>
+        <button class="ctrl-btn" onclick="handleInput('rotate')">↻</button>
+        <button class="ctrl-btn" onclick="handleInput('right')">→</button>
+        <button class="ctrl-btn" onclick="handleInput('down')">↓</button>
+    </div>
+
+    <script>
+        // --- Game Constants & State ---
+        const COLS = 10;
+        const ROWS = 20;
+        const arena = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        
+        const pieces = [
+            { matrix: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]] }, // I
+            { matrix: [[2,0,0],[2,2,2],[0,0,0]] },                 // J
+            { matrix: [[0,0,3],[3,3,3],[0,0,0]] },                 // L
+            { matrix: [[4,4],[4,4]] },                             // O
+            { matrix: [[0,5,5],[5,5,0],[0,0,0]] },                 // S
+            { matrix: [[0,6,0],[6,6,6],[0,0,0]] },                 // T
+            { matrix: [[7,7,0],[0,7,7],[0,0,0]] }                  // Z
+        ];
+
+        const player = {
+            pos: { x: 0, y: 0 },
+            matrix: null,
+            score: 0
+        };
+
+        // Load high score from localStorage
+        let highScore = parseInt(localStorage.getItem('gelatrisHighScore')) || 0;
+        document.getElementById('high-score').innerText = highScore;
+
+        let nextPiece = null;
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+
+        // --- Initialization ---
+        const gridElement = document.getElementById('grid');
+        for (let i = 0; i < ROWS * COLS; i++) {
+            const cell = document.createElement('div');
+            cell.classList.add('cell');
+            gridElement.appendChild(cell);
+        }
+
+        function playerReset() {
+            if (!nextPiece) {
+                nextPiece = pieces[Math.floor(Math.random() * pieces.length)];
+            }
+            
+            player.matrix = nextPiece.matrix.map(row => [...row]);
+            nextPiece = pieces[Math.floor(Math.random() * pieces.length)];
+            
+            player.pos.y = 0;
+            player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+
+            if (collide(arena, player)) {
+                // Game Over: Reset board and score, but keep high score
+                arena.forEach(row => row.fill(0));
+                player.score = 0;
+                dropInterval = 1000;
+                updateScore();
+            }
+            drawNext();
+        }
+
+        // --- Core Logic ---
+        function collide(arena, player) {
+            const [m, o] = [player.matrix, player.pos];
+            for (let y = 0; y < m.length; ++y) {
+                for (let x = 0; x < m[y].length; ++x) {
+                    if (m[y][x] !== 0 &&
+                        (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function merge(arena, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        arena[y + player.pos.y][x + player.pos.x] = value;
+                    }
+                });
+            });
+        }
+
+        function rotate(matrix) {
+            const N = matrix.length;
+            return matrix.map((row, i) =>
+                row.map((val, j) => matrix[j][N - 1 - i])
+            );
+        }
+
+        function playerRotate(dir) {
+            const pos = player.pos.x;
+            let offset = 1;
+            const originalMatrix = player.matrix;
+            player.matrix = rotate(player.matrix);
+            
+            // Wall kick logic
+            while (collide(arena, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    player.matrix = originalMatrix;
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+        }
+
+        function playerDrop() {
+            player.pos.y++;
+            if (collide(arena, player)) {
+                player.pos.y--;
+                merge(arena, player);
+                arenaSweep();
+                playerReset();
+            }
+            dropCounter = 0;
+        }
+
+        function playerMove(dir) {
+            player.pos.x += dir;
+            if (collide(arena, player)) {
+                player.pos.x -= dir;
+            }
+        }
+
+        function arenaSweep() {
+            let rowCount = 0;
+            outer: for (let y = arena.length - 1; y > 0; --y) {
+                for (let x = 0; x < arena[y].length; ++x) {
+                    if (arena[y][x] === 0) {
+                        continue outer;
+                    }
+                }
+                const row = arena.splice(y, 1)[0].fill(0);
+                arena.unshift(row);
+                ++y;
+                rowCount++;
+            }
+            if (rowCount > 0) {
+                const lineScores = [0, 100, 300, 500, 800];
+                player.score += lineScores[rowCount] || 800;
+                
+                // Check and update high score
+                if (player.score > highScore) {
+                    highScore = player.score;
+                    localStorage.setItem('gelatrisHighScore', highScore);
+                    document.getElementById('high-score').innerText = highScore;
+                }
+
+                dropInterval = Math.max(100, 1000 - Math.floor(player.score / 500) * 50);
+                updateScore();
+            }
+        }
+
+        // --- Rendering ---
+        function draw() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                cell.className = 'cell';
+            });
+
+            arena.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        const index = y * COLS + x;
+                        cells[index].classList.add('gel-block', `color-${value}`);
+                    }
+                });
+            });
+
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        const index = (player.pos.y + y) * COLS + (player.pos.x + x);
+                        if (index >= 0 && index < cells.length) {
+                            cells[index].classList.add('gel-block', `color-${value}`, 'active-piece');
+                        }
+                    }
+                });
+            });
+        }
+
+        function drawNext() {
+            const container = document.getElementById('next-piece');
+            container.innerHTML = '';
+            if (!nextPiece) return;
+
+            const size = nextPiece.matrix.length;
+            container.style.gridTemplateColumns = `repeat(${size}, 25px)`;
+
+            nextPiece.matrix.forEach(row => {
+                row.forEach(value => {
+                    const cell = document.createElement('div');
+                    if (value !== 0) {
+                        cell.classList.add('gel-block', `color-${value}`);
+                    }
+                    container.appendChild(cell);
+                });
+            });
+        }
+
+        function updateScore() {
+            document.getElementById('score').innerText = player.score;
+        }
+
+        // --- Game Loop ---
+        function update(time = 0) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                playerDrop();
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        // --- Input Handling ---
+        function handleInput(action) {
+            if (action === 'left') playerMove(-1);
+            if (action === 'right') playerMove(1);
+            if (action === 'down') playerDrop();
+            if (action === 'rotate') playerRotate(1);
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.keyCode === 37) handleInput('left');
+            else if (event.keyCode === 39) handleInput('right');
+            else if (event.keyCode === 40) handleInput('down');
+            else if (event.keyCode === 38) handleInput('rotate');
+        });
+
+        // --- Start Game ---
+        playerReset();
+        update();
+    </script>
+</body>
+</html>
